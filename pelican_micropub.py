@@ -18,7 +18,7 @@ class Entry(object):
         self.syndication = extract_value(request_data, 'syndication')
 
     def __str__(self):
-        return 'entry:' + self.content
+        return 'entry:' + self.content[0]
 
 
 def extract_value(mdict, key):
@@ -31,18 +31,21 @@ def extract_value(mdict, key):
         return None
 
 
-@app.route('/', methods=['POST'])
+@app.route('/', methods=['GET', 'POST'], strict_slashes=False)
 @requires_indieauth
 def create():
+    print( "in create")
     if 'h' not in request.form:
         return Response(status=400)
     if 'content' not in request.form:
         return Response(status=400)
-
+    print( "passed first")
     if request.form['h'] == 'entry':
         entry = Entry(request.form)
         print(entry)
-        return Response(status=202)
+        resp = Response(status=202)
+        resp.headers['Location'] = 'https://desmondrivet.com/2008/10/12/stuff'
+        return resp
     else:
         return Response(response='only entries supported', status=400)
 
