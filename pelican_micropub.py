@@ -22,19 +22,28 @@ class Entry(object):
 
         self.published = extract_value(request_data, 'published')
         if self.published is None:
-            self.published = [datetime.datetime.now().isoformat()]
-        self.published_date = datetime.datetime.strptime(self.published[0], '%Y-%m-%dT%H:%M:%S.%f')
+            self.published = datetime.datetime.now().isoformat()
+        self.published_date = datetime.datetime.strptime(self.published, '%Y-%m-%dT%H:%M:%S.%f')
 
     def __str__(self):
-        return 'entry:' + self.content[0]
+        return 'entry:' + self.content
 
 
-def extract_value(mdict, key, multiple=False):
+# 1. a list of 1 is returned as a single value, unless force_multiple is True
+# 2. a list with more than one value is always returned as a list
+def extract_value(mdict, key, force_multiple=False):
     mkey = key + '[]'
     if mkey in mdict:
-        return mdict.getlist(mkey)
+        val = mdict.getlist(mkey)
+        if len(val) > 1:
+            return val
+        else:
+            return val[0]
     elif key in mdict:
-        return [mdict[key]]
+        if force_multiple:
+            return [mdict[key]]
+        else:
+            return mdict[key]
     else:
         return None
 
@@ -44,9 +53,13 @@ def extract_published(entry):
     return entry.published_date.strftime('%Y-%m-%d %H:%M:%S')
 
 
+def write_meta(f, meta, data):
+    f.write(meta + ': ' + data + '\n')
+
+
 def extract_permalink(entry):
     if entry.mp_slug:
-        slug = entry.mp_slug[0]
+        slug = entry.mp_slug
     else:
         slug = entry.published_date.strftime('%Y%m%d%H%M%S')
     return entry.published_date.strftime('https://desmondrivet.com/%Y/%m/%d/') + slug
@@ -54,18 +67,20 @@ def extract_permalink(entry):
 
 def make_note(entry):
     with open('/tmp/note.nd', 'w') as f:
-        f.write('date: ' + extract_published(entry) + '\n')
+        write_meta(f, 'date', extract_published(entry))
+        write_meta(f, 'tags', ','.join(entry.category))
         f.write('\n')
-        f.write(entry.content[0])
+        f.write(entry.content)
     return extract_permalink(entry)
 
 
 def make_article(entry):
     with open('/tmp/article.md', 'w') as f:
-        f.write('title: ' + entry.name[0] + '\n')
-        f.write('date: ' + extract_published(entry) + '\n')
+        write_meta(f, 'title', entry.name)
+        write_meta(f, 'date', extract_published(entry))
+        write_meta(f, 'tags', ','.join(entry.category))
         f.write('\n')
-        f.write(entry.content[0])
+        f.write(entry.content)
     return extract_permalink(entry)
 
 
