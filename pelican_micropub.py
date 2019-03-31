@@ -7,6 +7,12 @@ import os
 import base64
 import json
 import io
+import time
+
+
+WEBSITE = 'website'
+WEBSITE_CONTENTS = 'https://api.github.com/repos/drivet/' + WEBSITE + '/contents'
+WEBSITE_URL = 'https://desmondrivet.com'
 
 app = Flask(__name__)
 
@@ -61,12 +67,16 @@ def write_meta(f, meta, data):
     f.write(meta + ': ' + data + '\n')
 
 
-def extract_permalink(entry):
+def extract_slug(entry):
     if entry.mp_slug:
         slug = entry.mp_slug
     else:
         slug = entry.published_date.strftime('%Y%m%d%H%M%S')
-    return entry.published_date.strftime('https://desmondrivet.com/%Y/%m/%d/') + slug
+    return slug
+
+
+def extract_permalink(entry):
+    return WEBSITE_URL + entry.published_date.strftime('/%Y/%m/%d/') + extract_slug(entry)
 
 
 def make_note(entry):
@@ -76,29 +86,58 @@ def make_note(entry):
             write_meta(f, 'tags', ','.join(entry.category))
         f.write('\n')
         f.write(entry.content)
-        commit_file('/content/notes/'+entry.published_date.strftime('%Y%m%d%H%M%S')+'.nd', f.getvalue())
-    return extract_permalink(entry)
+        r = commit_file('/content/notes/' + extract_slug(entry) + '.nd', f.getvalue())
+        if r.status_code != 201:
+            raise Exception('failed to post to github')
+    permalink = extract_permalink(entry)
+    created = wait_for_url(permalink)
+    return permalink, created
 
 
 def make_article(entry):
-    with open('/tmp/article.md', 'w') as f:
+    with io.StringIO() as f:
         write_meta(f, 'title', entry.name)
         write_meta(f, 'date', extract_published(entry))
         if entry.category:
             write_meta(f, 'tags', ','.join(entry.category))
         f.write('\n')
         f.write(entry.content)
-    return extract_permalink(entry)
+        r = commit_file('/content/blog/' + extract_slug(entry) + '.md', f.getvalue())
+        if r.status_code != 201:
+            raise Exception('failed to post to github')
+    permalink = extract_permalink(entry)
+    created = wait_for_url(permalink)
+    return permalink, created
 
 
 def commit_file(path, content):
-    url = 'https://api.github.com/repos/drivet/website-test/contents' + path
+    url = WEBSITE_CONTENTS + path
     return requests.put(url, auth=(os.environ['USERNAME'], os.environ['PASSWORD']),
                         data=json.dumps({'message': 'post to ' + path, 'content': b64(content)}))
 
 
 def b64(s):
     return base64.b64encode(s.encode()).decode()
+
+
+def wait_for_url(url):
+    timeout_secs = 15
+    wait_secs = 0.1
+    started = time.time()
+
+    done = False
+    found = False
+    while not done:
+        r = requests.head(url)
+        if r.status_code == 200:
+            done = True
+            found = True
+        elif (time.time() - started) >= timeout_secs:
+            done = True
+            found = False
+        else:
+            time.sleep(wait_secs)
+    return found
 
 
 @app.route('/', methods=['GET', 'POST'], strict_slashes=False)
@@ -112,11 +151,14 @@ def create():
     if request.form['h'] == 'entry':
         entry = Entry(request.form)
         if not entry.name:
-            permalink = make_note(entry)
+            permalink, created = make_note(entry)
         else:
-            permalink = make_article(entry)
+            permalink, created = make_article(entry)
 
-        resp = Response(status=202)
+        if created:
+            resp = Response(status=201)
+        else:
+            resp = Response(status=202)
         resp.headers['Location'] = permalink
         return resp
     else:
