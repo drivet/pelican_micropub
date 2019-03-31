@@ -1,8 +1,12 @@
+import requests
 from flask import Flask, Response, render_template
 from flask import request
 from flask_indieauth import requires_indieauth
 import datetime
-
+import os
+import base64
+import json
+import io
 
 app = Flask(__name__)
 
@@ -66,11 +70,13 @@ def extract_permalink(entry):
 
 
 def make_note(entry):
-    with open('/tmp/note.nd', 'w') as f:
+    with io.StringIO() as f:
         write_meta(f, 'date', extract_published(entry))
-        write_meta(f, 'tags', ','.join(entry.category))
+        if entry.category:
+            write_meta(f, 'tags', ','.join(entry.category))
         f.write('\n')
         f.write(entry.content)
+        commit_file('/content/notes/'+entry.published_date.strftime('%Y%m%d%H%M%S')+'.nd', f.getvalue())
     return extract_permalink(entry)
 
 
@@ -78,10 +84,21 @@ def make_article(entry):
     with open('/tmp/article.md', 'w') as f:
         write_meta(f, 'title', entry.name)
         write_meta(f, 'date', extract_published(entry))
-        write_meta(f, 'tags', ','.join(entry.category))
+        if entry.category:
+            write_meta(f, 'tags', ','.join(entry.category))
         f.write('\n')
         f.write(entry.content)
     return extract_permalink(entry)
+
+
+def commit_file(path, content):
+    url = 'https://api.github.com/repos/drivet/website-test/contents' + path
+    return requests.put(url, auth=(os.environ['USERNAME'], os.environ['PASSWORD']),
+                        data=json.dumps({'message': 'post to ' + path, 'content': b64(content)}))
+
+
+def b64(s):
+    return base64.b64encode(s.encode()).decode()
 
 
 @app.route('/', methods=['GET', 'POST'], strict_slashes=False)
