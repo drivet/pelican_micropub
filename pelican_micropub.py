@@ -46,7 +46,7 @@ def extract_value(mdict, key, force_multiple=False):
     mkey = key + '[]'
     if mkey in mdict:
         val = mdict.getlist(mkey)
-        if len(val) > 1:
+        if len(val) > 1 or force_multiple:
             return val
         else:
             return val[0]
