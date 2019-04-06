@@ -29,6 +29,7 @@ class Entry(object):
         self.repost_of = extract_value(request_data, 'report-of')
         self.syndication = extract_value(request_data, 'syndication', True)
         self.mp_slug = extract_value(request_data, 'mp-slug')
+        self.mp_syndicate_to = extract_value(request_data, 'mp-syndicate-to', True)
 
         self.published = extract_value(request_data, 'published')
         if self.published is None:
@@ -82,8 +83,13 @@ def extract_permalink(entry):
 def make_note(entry):
     with io.StringIO() as f:
         write_meta(f, 'date', extract_published(entry))
+
         if entry.category:
             write_meta(f, 'tags', ','.join(entry.category))
+
+        if entry.mp_syndicate_to:
+            write_meta(f, 'mp_syndicate_to', ','.join(entry.mp_syndicate_to))
+
         f.write('\n')
         f.write(entry.content)
         r = commit_file('/content/notes/' + extract_slug(entry) + '.nd', f.getvalue())
@@ -98,8 +104,13 @@ def make_article(entry):
     with io.StringIO() as f:
         write_meta(f, 'title', entry.name)
         write_meta(f, 'date', extract_published(entry))
+
         if entry.category:
             write_meta(f, 'tags', ','.join(entry.category))
+
+        if entry.mp_syndicate_to:
+            write_meta(f, 'mp_syndicate_to', ','.join(entry.mp_syndicate_to))
+
         f.write('\n')
         f.write(entry.content)
         r = commit_file('/content/blog/' + extract_slug(entry) + '.md', f.getvalue())
@@ -140,9 +151,22 @@ def wait_for_url(url):
     return found
 
 
+def handle_query():
+    q = request.args.get('q')
+    if q == 'config' or q == 'syndicate-to':
+        filename = os.path.join(os.path.dirname(__file__), 'config.json')
+        with open(filename) as f:
+            return f.read()
+    else:
+        return Response(status=400)
+
+
 @app.route('/', methods=['GET', 'POST'], strict_slashes=False)
 @requires_indieauth
-def create():
+def handle_root():
+    if 'q' in request.args:
+        return handle_query()
+
     if 'h' not in request.form:
         return Response(status=400)
     if 'content' not in request.form:
