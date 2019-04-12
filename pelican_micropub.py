@@ -42,6 +42,9 @@ class Entry(object):
             self.published = datetime.datetime.now().isoformat()
         self.published_date = datetime.datetime.strptime(self.published, '%Y-%m-%dT%H:%M:%S.%f')
 
+        self.photo = extract_value(request_data, 'photo', True)
+        self.video = extract_value(request_data, 'video', True)
+
     def __str__(self):
         return 'entry:' + self.content
 
@@ -95,6 +98,12 @@ def make_note(entry):
 
         if entry.mp_syndicate_to:
             write_meta(f, 'mp_syndicate_to', ','.join(entry.mp_syndicate_to))
+
+        if entry.photo:
+            write_meta(f, 'photos', ','.join(entry.photo))
+
+        if entry.video:
+            write_meta(f, 'videos', ','.join(entry.video))
 
         f.write('\n')
         f.write(entry.content)
@@ -221,7 +230,8 @@ def handle_media():
         print('saving file: ' + filename)
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         resp = Response(status=201)
-        resp.headers['Location'] = WEBSITE_URL + '/media/' + filename
+        location = WEBSITE_URL + '/media/' + filename
+        resp.headers['Location'] = location
         return resp
 
 
