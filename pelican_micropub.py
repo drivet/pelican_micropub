@@ -214,9 +214,11 @@ def handle_media():
         return Response(response='no selected file', status=400)
 
     if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], create_filename(filename)))
-        return Response(status=201)
+        filename = create_filename(secure_filename(file.filename))
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        resp = Response(status=201)
+        resp.headers['Location'] = WEBSITE_URL + '/media/' + filename
+        return resp
 
 
 def create_filename(filename):
