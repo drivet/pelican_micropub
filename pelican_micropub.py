@@ -193,6 +193,7 @@ def handle_root():
         return Response(status=400)
 
     if request.form['h'] == 'entry':
+        print('form data: ' + str(request.form))
         entry = Entry(request.form)
         if not entry.name:
             permalink, created = make_note(entry)
