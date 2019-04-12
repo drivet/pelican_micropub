@@ -4,5 +4,6 @@
       "uid": "https://brid.gy/publish/twitter",
       "name": "Twitter via Bridgy"
     }
-  ]
+  ],
+  "media-endpoint": "https://desmondrivet.com/micropub/media"
 }

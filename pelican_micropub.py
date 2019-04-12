@@ -2,19 +2,25 @@ import requests
 from flask import Flask, Response, render_template
 from flask import request
 from flask_indieauth import requires_indieauth
+from werkzeug.utils import secure_filename
 import datetime
 import os
 import base64
 import json
 import io
 import time
+import uuid
 
 
 WEBSITE = 'website'
 WEBSITE_CONTENTS = 'https://api.github.com/repos/drivet/' + WEBSITE + '/contents'
 WEBSITE_URL = 'https://desmondrivet.com'
+UPLOAD_FOLDER = '/path/wwwroot/media'
+ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif', 'PNG', 'JPG', 'JPEG', 'GIF'])
+
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 
 class Entry(object):
@@ -161,6 +167,11 @@ def handle_query():
         return Response(status=400)
 
 
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
 @app.route('/', methods=['GET', 'POST'], strict_slashes=False)
 @requires_indieauth
 def handle_root():
@@ -189,6 +200,25 @@ def handle_root():
         return Response(response='only entries supported', status=400)
 
 
-@app.route('/test', methods=['GET'])
-def test_form():
-    return render_template('test_post.html')
+@app.route('/media', methods=['POST'], strict_slashes=False)
+@requires_indieauth
+def handle_media():
+    # check if the post request has the file part
+    if 'file' not in request.files:
+        return Response(response='no file part', status=400)
+    file = request.files['file']
+
+    # if user does not select file, browser also
+    # submit an empty part without filename
+    if file.filename == '':
+        return Response(response='no selected file', status=400)
+
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], create_filename(filename)))
+        return Response(status=201)
+
+
+def create_filename(filename):
+    base, ext = os.path.splitext(filename)
+    return str(uuid.uuid4()) + ext
