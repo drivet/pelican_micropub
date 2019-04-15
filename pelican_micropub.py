@@ -62,7 +62,7 @@ def extract_photos(request_data):
     photos = []
     for p in photo_req_values:
         if type(p) is dict:
-            photo = Photo(p['url'], p.get('alt', ''))
+            photo = Photo(p['value'], p.get('alt', ''))
         else:
             photo = Photo(p)
         photos.append(photo)
