@@ -11,7 +11,8 @@ import io
 import time
 import uuid
 from PIL import Image
-
+from werkzeug.datastructures import MultiDict
+import re
 
 WEBSITE = 'website'
 WEBSITE_CONTENTS = 'https://api.github.com/repos/drivet/' + WEBSITE + '/contents'
@@ -23,6 +24,12 @@ IMAGE_SIZE = 1024
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+
+class Photo(object):
+    def __init__(self, url, alt=''):
+        self.url = url
+        self.alt = alt
 
 
 class Entry(object):
@@ -44,11 +51,22 @@ class Entry(object):
             self.published = datetime.datetime.now().isoformat()
         self.published_date = datetime.datetime.strptime(self.published, '%Y-%m-%dT%H:%M:%S.%f')
 
-        self.photo = extract_value(request_data, 'photo', True)
-        self.video = extract_value(request_data, 'video', True)
+        self.photo = extract_photos(request_data)
 
     def __str__(self):
         return 'entry:' + self.content
+
+
+def extract_photos(request_data):
+    photo_req_values = extract_value(request_data, 'photo', True)
+    photos = []
+    for p in photo_req_values:
+        if type(p) is dict:
+            photo = Photo(p['url'], p.get('alt', ''))
+        else:
+            photo = Photo(p)
+        photos.append(photo)
+    return photos
 
 
 # 1. a list of 1 is returned as a single value, unless force_multiple is True
@@ -91,6 +109,10 @@ def extract_permalink(entry):
     return WEBSITE_URL + entry.published_date.strftime('/%Y/%m/%d/') + extract_slug(entry)
 
 
+def escape_commas(s):
+    return re.sub(r',', r'\,', s)
+
+
 def make_note(entry):
     with io.StringIO() as f:
         write_meta(f, 'date', extract_published(entry))
@@ -102,10 +124,10 @@ def make_note(entry):
             write_meta(f, 'mp_syndicate_to', ','.join(entry.mp_syndicate_to))
 
         if entry.photo:
-            write_meta(f, 'photos', ','.join(entry.photo))
-
-        if entry.video:
-            write_meta(f, 'videos', ','.join(entry.video))
+            write_meta(f, 'photos', ','.join(map(lambda p: p.url, entry.photo)))
+            alt = ','.join(map(lambda p: escape_commas(p.alt), entry.photo))
+            if alt != ',' * (len(entry.photo) - 1):
+                write_meta(f, 'photos_alt', alt)
 
         f.write('\n')
         f.write(entry.content)
@@ -189,14 +211,15 @@ def handle_root():
     if 'q' in request.args:
         return handle_query()
 
-    if 'h' not in request.form:
+    request_data = make_form()
+
+    if 'h' not in request_data:
         return Response(status=400)
-    if 'content' not in request.form:
+    if 'content' not in request_data:
         return Response(status=400)
 
-    if request.form['h'] == 'entry':
-        print('form data: ' + str(request.form))
-        entry = Entry(request.form)
+    if request_data['h'] == 'entry':
+        entry = Entry(request_data)
         if not entry.name:
             permalink, created = make_note(entry)
         else:
@@ -209,7 +232,18 @@ def handle_root():
         resp.headers['Location'] = permalink
         return resp
     else:
-        return Response(response='only entries supported', status=400)
+        return Response(response='only h-entry supported', status=400)
+
+
+def make_form():
+    json_data = request.get_json()
+    if not json_data:
+        return request.form
+    result = MultiDict()
+    result['h'] = json_data['type'][0].split('-', 1)[1]
+    for key, value in json_data['properties'].items():
+        result.setlist(key, value)
+    return result
 
 
 @app.route('/media', methods=['POST'], strict_slashes=False)
