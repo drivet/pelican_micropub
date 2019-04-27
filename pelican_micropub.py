@@ -1,18 +1,19 @@
-import requests
-from flask import Flask, Response, render_template
-from flask import request
-from flask_indieauth import requires_indieauth
-from werkzeug.utils import secure_filename
-import datetime
-import os
 import base64
-import json
+import datetime
 import io
+import json
+import os
+import re
 import time
 import uuid
+
+import requests
 from PIL import Image
+from flask import Flask, Response
+from flask import request
+from flask_indieauth import requires_indieauth
 from werkzeug.datastructures import MultiDict
-import re
+from werkzeug.utils import secure_filename
 
 WEBSITE = 'website'
 WEBSITE_CONTENTS = 'https://api.github.com/repos/drivet/' + WEBSITE + '/contents'
