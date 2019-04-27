@@ -59,7 +59,7 @@ class Entry(object):
 
 
 def extract_photos(request_data):
-    photo_req_values = extract_value(request_data, 'photo', True)
+    photo_req_values = extract_value(request_data, 'photo', True) or []
     photos = []
     for p in photo_req_values:
         if type(p) is dict:
